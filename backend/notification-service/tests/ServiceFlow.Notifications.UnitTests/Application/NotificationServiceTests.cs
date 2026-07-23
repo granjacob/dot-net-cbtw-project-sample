@@ -1,0 +1,120 @@
+using ServiceFlow.Notifications.Application.Abstractions;
+using ServiceFlow.Notifications.Application.Services;
+using ServiceFlow.Notifications.Domain.Entities;
+
+namespace ServiceFlow.Notifications.UnitTests.Application;
+
+public sealed class NotificationServiceTests
+{
+    [Fact]
+    public async Task SearchAsync_ReturnsExpectedPageContract()
+    {
+        var notifications = new[]
+        {
+            CreateNotification("RequestCreated"),
+            CreateNotification("CommentAdded")
+        };
+        var repository = new FakeNotificationRepository(notifications, total: 7);
+        var service = new NotificationService(repository);
+
+        var result = await service.SearchAsync(
+            "employee@serviceflow.local",
+            isRead: false,
+            page: 2,
+            pageSize: 2,
+            CancellationToken.None);
+
+        Assert.Equal(7, result.Total);
+        Assert.Equal(2, result.Page);
+        Assert.Equal(2, result.PageSize);
+        Assert.Equal(4, result.TotalPages);
+        Assert.Equal(2, result.Items.Count);
+        Assert.Equal(false, repository.LastIsRead);
+    }
+
+    [Fact]
+    public async Task MarkAsReadAsync_PersistsOnlyTheFirstTransition()
+    {
+        var notification = CreateNotification("RequestAssigned");
+        var repository = new FakeNotificationRepository([notification]);
+        var service = new NotificationService(repository);
+
+        var first = await service.MarkAsReadAsync(
+            notification.Id,
+            notification.UserId,
+            CancellationToken.None);
+        var second = await service.MarkAsReadAsync(
+            notification.Id,
+            notification.UserId,
+            CancellationToken.None);
+
+        Assert.NotNull(first);
+        Assert.True(first.IsRead);
+        Assert.NotNull(second);
+        Assert.Equal(1, repository.SaveChangesCalls);
+    }
+
+    [Fact]
+    public async Task MarkAsReadAsync_DoesNotExposeAnotherUsersNotification()
+    {
+        var notification = CreateNotification("RequestUpdated");
+        var repository = new FakeNotificationRepository([notification]);
+        var service = new NotificationService(repository);
+
+        var result = await service.MarkAsReadAsync(
+            notification.Id,
+            "another-user@serviceflow.local",
+            CancellationToken.None);
+
+        Assert.Null(result);
+        Assert.Equal(0, repository.SaveChangesCalls);
+    }
+
+    private static Notification CreateNotification(string type) => Notification.Create(
+        "employee@serviceflow.local",
+        type,
+        "Notification title",
+        "Notification message",
+        Guid.NewGuid());
+
+    private sealed class FakeNotificationRepository(
+        IReadOnlyCollection<Notification> notifications,
+        long? total = null) : INotificationRepository
+    {
+        public bool? LastIsRead { get; private set; }
+        public int SaveChangesCalls { get; private set; }
+
+        public Task<(IReadOnlyCollection<Notification> Items, long Total)> SearchAsync(
+            string userId,
+            bool? isRead,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken)
+        {
+            LastIsRead = isRead;
+            return Task.FromResult((notifications, total ?? notifications.Count));
+        }
+
+        public Task<long> CountUnreadAsync(
+            string userId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult((long)notifications.Count(notification => !notification.IsRead));
+
+        public Task<Notification?> GetAsync(
+            Guid id,
+            string userId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(notifications.SingleOrDefault(notification =>
+                notification.Id == id && notification.UserId == userId));
+
+        public Task<int> MarkAllAsReadAsync(
+            string userId,
+            CancellationToken cancellationToken) => Task.FromResult(0);
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken)
+        {
+            SaveChangesCalls++;
+            return Task.CompletedTask;
+        }
+    }
+}

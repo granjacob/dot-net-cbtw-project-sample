@@ -1,0 +1,20 @@
+<Solution>
+  <Folder Name="/backend/request-service/src/">
+    <Project Path="backend/request-service/src/ServiceFlow.Requests.Api/ServiceFlow.Requests.Api.csproj" />
+    <Project Path="backend/request-service/src/ServiceFlow.Requests.Application/ServiceFlow.Requests.Application.csproj" />
+    <Project Path="backend/request-service/src/ServiceFlow.Requests.Domain/ServiceFlow.Requests.Domain.csproj" />
+    <Project Path="backend/request-service/src/ServiceFlow.Requests.Infrastructure/ServiceFlow.Requests.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/backend/request-service/tests/">
+    <Project Path="backend/request-service/tests/ServiceFlow.Requests.UnitTests/ServiceFlow.Requests.UnitTests.csproj" />
+  </Folder>
+  <Folder Name="/backend/notification-service/src/">
+    <Project Path="backend/notification-service/src/ServiceFlow.Notifications.Api/ServiceFlow.Notifications.Api.csproj" />
+    <Project Path="backend/notification-service/src/ServiceFlow.Notifications.Application/ServiceFlow.Notifications.Application.csproj" />
+    <Project Path="backend/notification-service/src/ServiceFlow.Notifications.Domain/ServiceFlow.Notifications.Domain.csproj" />
+    <Project Path="backend/notification-service/src/ServiceFlow.Notifications.Infrastructure/ServiceFlow.Notifications.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/backend/notification-service/tests/">
+    <Project Path="backend/notification-service/tests/ServiceFlow.Notifications.UnitTests/ServiceFlow.Notifications.UnitTests.csproj" />
+  </Folder>
+</Solution>

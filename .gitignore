@@ -1,0 +1,30 @@
+# .NET
+**/bin/
+**/obj/
+*.user
+*.suo
+TestResults/
+coverage/
+
+# Node / Vite
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+*.tsbuildinfo
+npm-debug.log*
+
+# Local configuration
+.env
+.env.local
+appsettings.Local.json
+
+# IDE / OS
+.vs/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Docker / generated data
+db/data/
+*.log

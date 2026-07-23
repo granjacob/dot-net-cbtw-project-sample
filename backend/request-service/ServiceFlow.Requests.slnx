@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="src/ServiceFlow.Requests.Domain/ServiceFlow.Requests.Domain.csproj" />
+  <Project Path="src/ServiceFlow.Requests.Application/ServiceFlow.Requests.Application.csproj" />
+  <Project Path="src/ServiceFlow.Requests.Infrastructure/ServiceFlow.Requests.Infrastructure.csproj" />
+  <Project Path="src/ServiceFlow.Requests.Api/ServiceFlow.Requests.Api.csproj" />
+  <Project Path="tests/ServiceFlow.Requests.UnitTests/ServiceFlow.Requests.UnitTests.csproj" />
+</Solution>

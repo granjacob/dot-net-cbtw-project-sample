@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ServiceFlow.Notifications.Api/ServiceFlow.Notifications.Api.csproj" />
+    <Project Path="src/ServiceFlow.Notifications.Application/ServiceFlow.Notifications.Application.csproj" />
+    <Project Path="src/ServiceFlow.Notifications.Domain/ServiceFlow.Notifications.Domain.csproj" />
+    <Project Path="src/ServiceFlow.Notifications.Infrastructure/ServiceFlow.Notifications.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ServiceFlow.Notifications.UnitTests/ServiceFlow.Notifications.UnitTests.csproj" />
+  </Folder>
+</Solution>

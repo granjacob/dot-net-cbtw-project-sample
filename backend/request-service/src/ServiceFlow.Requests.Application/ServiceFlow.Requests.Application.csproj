@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\ServiceFlow.Requests.Domain\ServiceFlow.Requests.Domain.csproj" />
+  </ItemGroup>
+</Project>

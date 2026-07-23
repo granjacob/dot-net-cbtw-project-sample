@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="coverlet.collector" Version="6.0.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ServiceFlow.Requests.Domain\ServiceFlow.Requests.Domain.csproj" />
+    <ProjectReference Include="..\..\src\ServiceFlow.Requests.Application\ServiceFlow.Requests.Application.csproj" />
+    <ProjectReference Include="..\..\src\ServiceFlow.Requests.Infrastructure\ServiceFlow.Requests.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\ServiceFlow.Requests.Api\ServiceFlow.Requests.Api.csproj" />
+  </ItemGroup>
+</Project>

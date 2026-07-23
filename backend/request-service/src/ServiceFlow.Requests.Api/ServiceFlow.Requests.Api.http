@@ -1,0 +1,14 @@
+@host = http://localhost:8080
+
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "employee@serviceflow.local",
+  "password": "Employee123!"
+}
+
+###
+
+GET {{host}}/health/ready
+

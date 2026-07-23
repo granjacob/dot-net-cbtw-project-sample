@@ -1,0 +1,140 @@
+name: serviceflow
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: serviceflow-sqlserver
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-ServiceFlow_2026!Local}"
+    ports:
+      - "${SQLSERVER_PORT:-1433}:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -Q "SELECT 1" -b -o /dev/null
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    networks:
+      - serviceflow
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    container_name: serviceflow-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: "${RABBITMQ_USER:-serviceflow}"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASSWORD:-ServiceFlowRabbit_2026!}"
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    networks:
+      - serviceflow
+
+  request-service:
+    build:
+      context: ./backend/request-service
+      dockerfile: Dockerfile
+    container_name: serviceflow-requests
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__RequestsDatabase: "Server=sqlserver,1433;Database=ServiceFlowRequests;User Id=sa;Password=${MSSQL_SA_PASSWORD:-ServiceFlow_2026!Local};Encrypt=False;TrustServerCertificate=True;MultipleActiveResultSets=True"
+      Jwt__Issuer: ServiceFlow
+      Jwt__Audience: ServiceFlow.Client
+      Jwt__Key: "${JWT_KEY:-serviceflow-local-jwt-signing-key-2026-change-me-please}"
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__UserName: "${RABBITMQ_USER:-serviceflow}"
+      RabbitMq__Password: "${RABBITMQ_PASSWORD:-ServiceFlowRabbit_2026!}"
+      RabbitMq__Exchange: serviceflow.events
+      RabbitMq__RoutingKey: request.event
+      RabbitMq__Queue: serviceflow.notifications
+      RabbitMq__BindingKey: request.#
+      RabbitMq__DeadLetterExchange: serviceflow.dead-letter
+      RabbitMq__DeadLetterQueue: serviceflow.notifications.dead-letter
+      RabbitMq__DeadLetterRoutingKey: serviceflow.notifications.failed
+      RequestId__NodeId: 0
+    ports:
+      - "${REQUEST_SERVICE_PORT:-5001}:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - serviceflow
+
+  notification-service:
+    build:
+      context: ./backend/notification-service
+      dockerfile: Dockerfile
+    container_name: serviceflow-notifications
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__NotificationsDatabase: "Server=sqlserver,1433;Database=ServiceFlowNotifications;User Id=sa;Password=${MSSQL_SA_PASSWORD:-ServiceFlow_2026!Local};Encrypt=False;TrustServerCertificate=True;MultipleActiveResultSets=True"
+      Jwt__Issuer: ServiceFlow
+      Jwt__Audience: ServiceFlow.Client
+      Jwt__Key: "${JWT_KEY:-serviceflow-local-jwt-signing-key-2026-change-me-please}"
+      RabbitMq__HostName: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__UserName: "${RABBITMQ_USER:-serviceflow}"
+      RabbitMq__Password: "${RABBITMQ_PASSWORD:-ServiceFlowRabbit_2026!}"
+      RabbitMq__Exchange: serviceflow.events
+      RabbitMq__Queue: serviceflow.notifications
+      RabbitMq__RoutingKey: request.#
+      RabbitMq__DeadLetterExchange: serviceflow.dead-letter
+      RabbitMq__DeadLetterQueue: serviceflow.notifications.dead-letter
+      RabbitMq__DeadLetterRoutingKey: serviceflow.notifications.failed
+      SignalR__BroadcastToAll: "false"
+    ports:
+      - "${NOTIFICATION_SERVICE_PORT:-5002}:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - serviceflow
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: serviceflow-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - request-service
+      - notification-service
+    networks:
+      - serviceflow
+
+volumes:
+  sqlserver_data:
+    name: serviceflow-sqlserver-data
+  rabbitmq_data:
+    name: serviceflow-rabbitmq-data
+
+networks:
+  serviceflow:
+    name: serviceflow-network
+    driver: bridge
