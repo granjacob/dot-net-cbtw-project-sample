@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using ServiceFlow.Notifications.Api.Middleware;
+using ServiceFlow.Notifications.Api.OpenApi;
 using ServiceFlow.Notifications.Api.Realtime;
 using ServiceFlow.Notifications.Application;
 using ServiceFlow.Notifications.Application.Abstractions;
@@ -24,7 +25,11 @@ builder.Services.AddProblemDetails(options =>
     };
 });
 builder.Services.AddControllers();
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+    options.AddOperationTransformer<AuthorizeOperationTransformer>();
+});
 
 var jwtKey = builder.Configuration["Jwt:Key"];
 if (string.IsNullOrWhiteSpace(jwtKey) || Encoding.UTF8.GetByteCount(jwtKey) < 32)
@@ -108,7 +113,21 @@ app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapOpenApi().AllowAnonymous();
+var openApiEnabled = app.Environment.IsDevelopment()
+    || app.Configuration.GetValue<bool>("OpenApi:Enabled");
+if (openApiEnabled)
+{
+    app.MapOpenApi().AllowAnonymous();
+    app.UseSwaggerUI(options =>
+    {
+        options.RoutePrefix = "swagger";
+        options.SwaggerEndpoint("/openapi/v1.json", "ServiceFlow Notifications API v1");
+        options.DocumentTitle = "ServiceFlow Notifications API v1";
+        options.DisplayRequestDuration();
+        options.EnablePersistAuthorization();
+    });
+}
+
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
     Predicate = _ => false

@@ -28,6 +28,8 @@ La primera ejecución descarga SQL Server y compila las imágenes, por lo que pu
 | Aplicación React | http://localhost:3000 |
 | Request Service | http://localhost:5001 |
 | Notification Service | http://localhost:5002 |
+| Swagger UI Requests | http://localhost:5001/swagger |
+| Swagger UI Notifications | http://localhost:5002/swagger |
 | OpenAPI Requests | http://localhost:5001/openapi/v1.json |
 | OpenAPI Notifications | http://localhost:5002/openapi/v1.json |
 | RabbitMQ Management | http://localhost:15672 |
@@ -207,6 +209,17 @@ Todos los endpoints salvo el login y los health checks requieren `Authorization:
 | WebSocket | `/hubs/notifications` |
 
 Health checks: `/health/live` comprueba el proceso y `/health/ready` incluye la base de datos.
+
+### Swagger UI
+
+En el entorno `Development`, ambos microservicios exponen documentación interactiva:
+
+- Request Service: http://localhost:5001/swagger
+- Notification Service: http://localhost:5002/swagger
+
+Para probar endpoints protegidos, ejecuta primero `POST /api/auth/login` en Request Service, copia el valor `token`, pulsa **Authorize** y pega únicamente el JWT, sin escribir el prefijo `Bearer`. El esquema OpenAPI aplica el requisito de seguridad solo a las operaciones que tienen autorización. Swagger conserva la autorización al recargar; en un equipo compartido usa **Authorize > Logout** cuando termines.
+
+Swagger UI y el documento OpenAPI están deshabilitados por defecto en `Production`. Para habilitarlos explícitamente en un entorno controlado, configura `OpenApi__Enabled=true`; no se recomienda publicar estas rutas sin protección en internet.
 
 ## Demostración en tiempo real
 

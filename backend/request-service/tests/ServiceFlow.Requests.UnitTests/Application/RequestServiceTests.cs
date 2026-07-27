@@ -180,6 +180,60 @@ public sealed class RequestServiceTests
         Assert.Equal(1, unitOfWork.SaveCalls);
     }
 
+    [Theory]
+    [InlineData(0, 20, "createdAt", "desc", "requests.invalid_page")]
+    [InlineData(1, 0, "createdAt", "desc", "requests.invalid_page_size")]
+    [InlineData(1, 101, "createdAt", "desc", "requests.invalid_page_size")]
+    [InlineData(1, 20, "unsupported", "desc", "requests.invalid_sort")]
+    [InlineData(1, 20, "createdAt", "sideways", "requests.invalid_sort_direction")]
+    public async Task Search_InvalidFilter_ReturnsValidationWithoutQueryingRepository(
+        int page,
+        int pageSize,
+        string sortBy,
+        string sortDirection,
+        string expectedCode)
+    {
+        var repository = new FakeRequestRepository();
+        var service = CreateService(repository, new FakeOutboxRepository(), new FakeUnitOfWork());
+
+        var result = await service.SearchAsync(new RequestFilter
+        {
+            Page = page,
+            PageSize = pageSize,
+            SortBy = sortBy,
+            SortDirection = sortDirection
+        }, TestContext.Current.CancellationToken);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(expectedCode, result.Error?.Code);
+        Assert.Null(repository.LastFilter);
+    }
+
+    [Fact]
+    public async Task Create_UnauthenticatedUser_ReturnsForbiddenWithoutWriting()
+    {
+        var repository = new FakeRequestRepository();
+        var outbox = new FakeOutboxRepository();
+        var unitOfWork = new FakeUnitOfWork();
+        var service = CreateService(
+            repository,
+            outbox,
+            unitOfWork,
+            new FakeCurrentUser("", false, "Employee"));
+
+        var result = await service.CreateAsync(new CreateRequestCommand(
+            "Printer is unavailable",
+            "The shared printer cannot be reached from any workstation.",
+            RequestCategory.TechnicalSupport,
+            RequestPriority.Medium), TestContext.Current.CancellationToken);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ErrorType.Forbidden, result.Error?.Type);
+        Assert.Null(repository.Added);
+        Assert.Empty(outbox.Messages);
+        Assert.Equal(0, unitOfWork.SaveCalls);
+    }
+
     private static RequestService CreateService(
         FakeRequestRepository requests,
         FakeOutboxRepository outbox,
@@ -260,11 +314,25 @@ public sealed class RequestServiceTests
         public DateTimeOffset UtcNow => new(2026, 7, 22, 17, 0, 0, TimeSpan.Zero);
     }
 
-    private sealed class FakeCurrentUser(string userId, params string[] roles) : ICurrentUser
+    private sealed class FakeCurrentUser : ICurrentUser
     {
-        public string UserId => userId;
-        public bool IsAuthenticated => true;
-        public bool IsInRole(string role) => roles.Contains(role, StringComparer.Ordinal);
+        private readonly string[] _roles;
+
+        public FakeCurrentUser(string userId, params string[] roles)
+            : this(userId, true, roles)
+        {
+        }
+
+        public FakeCurrentUser(string userId, bool isAuthenticated, params string[] roles)
+        {
+            UserId = userId;
+            IsAuthenticated = isAuthenticated;
+            _roles = roles;
+        }
+
+        public string UserId { get; }
+        public bool IsAuthenticated { get; }
+        public bool IsInRole(string role) => _roles.Contains(role, StringComparer.Ordinal);
     }
 
     private sealed class FakeCorrelation : ICorrelationIdAccessor

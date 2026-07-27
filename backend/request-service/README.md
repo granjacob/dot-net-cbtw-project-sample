@@ -21,7 +21,7 @@ La API escucha en el puerto `8080` dentro del contenedor. En desarrollo crea el 
 | Agent | `agent@serviceflow.local` | `Agent123!` |
 | Administrator | `admin@serviceflow.local` | `Admin123!` |
 
-El documento OpenAPI se expone en `/openapi/v1.json`; las sondas están en `/health/live` y `/health/ready`.
+En `Development`, el documento OpenAPI se expone en `/openapi/v1.json` y Swagger UI en `/swagger`. La interfaz incluye autenticación JWT: ejecuta `POST /api/auth/login`, pulsa **Authorize** y pega solamente el valor `token`. Swagger conserva la autorización al recargar; en un equipo compartido usa **Authorize > Logout** cuando termines. En `Production`, ambas rutas se habilitan únicamente si `OpenApi__Enabled=true`. Las sondas están en `/health/live` y `/health/ready`.
 
 ## API
 

@@ -83,10 +83,40 @@ Las claves admiten el formato de variables de entorno de .NET (`__`):
 - `Cors__Origins__0`
 - `SignalR__BroadcastToAll`
 - `DatabaseInitialization__Enabled`, `DatabaseInitialization__MaxRetries`
+- `OpenApi__Enabled`
 
 La base `ServiceFlowNotifications` se crea con `EnsureCreatedAsync` y reintentos al
-arrancar. Los probes son `/health/live` y `/health/ready`; OpenAPI está en
-`/openapi/v1.json`.
+arrancar. Los probes son `/health/live` y `/health/ready`.
+
+## OpenAPI y Swagger UI
+
+OpenAPI y Swagger UI se habilitan automáticamente en `Development`. En cualquier
+otro entorno permanecen deshabilitados, salvo que se configure
+`OpenApi__Enabled=true` explícitamente.
+
+Con los puertos predeterminados de Docker Compose están disponibles en:
+
+- Documento OpenAPI: `http://localhost:5002/openapi/v1.json`
+- Swagger UI: `http://localhost:5002/swagger`
+
+Los endpoints de notificaciones requieren un JWT. Se puede obtener uno iniciando
+sesión en Request Service:
+
+```powershell
+$login = Invoke-RestMethod `
+  -Method Post `
+  -Uri http://localhost:5001/api/auth/login `
+  -ContentType application/json `
+  -Body '{"email":"employee@serviceflow.local","password":"Employee123!"}'
+
+$login.token
+```
+
+En Swagger UI, selecciona **Authorize**, pega únicamente el valor de
+`$login.token` y confirma. No agregues manualmente el prefijo `Bearer`; Swagger UI
+lo agrega al encabezado `Authorization`. La autorización se conserva al recargar
+la página, por lo que debe cerrarse desde **Authorize > Logout** al terminar en un
+equipo compartido.
 
 ## Verificación
 

@@ -70,6 +70,52 @@ public sealed class NotificationServiceTests
         Assert.Equal(0, repository.SaveChangesCalls);
     }
 
+    [Theory]
+    [InlineData(0, 10)]
+    [InlineData(1, 0)]
+    [InlineData(1, 101)]
+    public async Task SearchAsync_RejectsInvalidPagination(int page, int pageSize)
+    {
+        var repository = new FakeNotificationRepository([]);
+        var service = new NotificationService(repository);
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => service.SearchAsync(
+            "employee@serviceflow.local",
+            null,
+            page,
+            pageSize,
+            CancellationToken.None));
+
+        Assert.Equal(0, repository.SearchCalls);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Operations_RejectMissingUserId(string userId)
+    {
+        var repository = new FakeNotificationRepository([]);
+        var service = new NotificationService(repository);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.CountUnreadAsync(userId, CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() => service.MarkAllAsReadAsync(userId, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task CountAndMarkAll_ForwardRepositoryResults()
+    {
+        var notifications = new[] { CreateNotification("RequestCreated"), CreateNotification("CommentAdded") };
+        var repository = new FakeNotificationRepository(notifications) { MarkAllResult = 2 };
+        var service = new NotificationService(repository);
+
+        var unread = await service.CountUnreadAsync("employee@serviceflow.local", CancellationToken.None);
+        var marked = await service.MarkAllAsReadAsync("employee@serviceflow.local", CancellationToken.None);
+
+        Assert.Equal(2, unread);
+        Assert.Equal(2, marked);
+        Assert.Equal("employee@serviceflow.local", repository.LastUserId);
+    }
+
     private static Notification CreateNotification(string type) => Notification.Create(
         "employee@serviceflow.local",
         type,
@@ -83,6 +129,9 @@ public sealed class NotificationServiceTests
     {
         public bool? LastIsRead { get; private set; }
         public int SaveChangesCalls { get; private set; }
+        public int SearchCalls { get; private set; }
+        public string? LastUserId { get; private set; }
+        public int MarkAllResult { get; init; }
 
         public Task<(IReadOnlyCollection<Notification> Items, long Total)> SearchAsync(
             string userId,
@@ -91,14 +140,19 @@ public sealed class NotificationServiceTests
             int pageSize,
             CancellationToken cancellationToken)
         {
+            SearchCalls++;
+            LastUserId = userId;
             LastIsRead = isRead;
             return Task.FromResult((notifications, total ?? notifications.Count));
         }
 
         public Task<long> CountUnreadAsync(
             string userId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult((long)notifications.Count(notification => !notification.IsRead));
+            CancellationToken cancellationToken)
+        {
+            LastUserId = userId;
+            return Task.FromResult((long)notifications.Count(notification => !notification.IsRead));
+        }
 
         public Task<Notification?> GetAsync(
             Guid id,
@@ -109,7 +163,11 @@ public sealed class NotificationServiceTests
 
         public Task<int> MarkAllAsReadAsync(
             string userId,
-            CancellationToken cancellationToken) => Task.FromResult(0);
+            CancellationToken cancellationToken)
+        {
+            LastUserId = userId;
+            return Task.FromResult(MarkAllResult);
+        }
 
         public Task SaveChangesAsync(CancellationToken cancellationToken)
         {

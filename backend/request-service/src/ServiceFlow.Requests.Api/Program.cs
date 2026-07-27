@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using ServiceFlow.Requests.Api.Authentication;
 using ServiceFlow.Requests.Api.Middleware;
+using ServiceFlow.Requests.Api.OpenApi;
 using ServiceFlow.Requests.Application.Abstractions;
 using ServiceFlow.Requests.Infrastructure;
 using ServiceFlow.Requests.Infrastructure.Health;
@@ -23,7 +24,11 @@ builder.Services.AddControllers().AddJsonOptions(options =>
     options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false));
     options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
 });
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+    options.AddOperationTransformer<BearerSecurityRequirementTransformer>();
+});
 
 builder.Services.AddOptions<JwtOptions>()
     .Bind(builder.Configuration.GetSection(JwtOptions.SectionName))
@@ -116,7 +121,21 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapOpenApi().AllowAnonymous();
+var openApiEnabled = app.Environment.IsDevelopment()
+    || app.Configuration.GetValue<bool>("OpenApi:Enabled");
+if (openApiEnabled)
+{
+    app.MapOpenApi().AllowAnonymous();
+    app.UseSwaggerUI(options =>
+    {
+        options.RoutePrefix = "swagger";
+        options.SwaggerEndpoint("/openapi/v1.json", "ServiceFlow Requests API v1");
+        options.DocumentTitle = "ServiceFlow Requests API";
+        options.DisplayRequestDuration();
+        options.EnablePersistAuthorization();
+    });
+}
+
 app.MapControllers();
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
 app.MapHealthChecks("/health/ready", new HealthCheckOptions
