@@ -1,6 +1,6 @@
 # ServiceFlow Request Service
 
-Microservicio ASP.NET Core 10 organizado con Clean Architecture. Es propietario de la base de datos `ServiceFlowRequests` y publica sus cambios mediante un outbox transaccional a RabbitMQ.
+Microservicio ASP.NET Core 10 organizado con Clean Architecture. Es propietario de la base de datos `ServiceFlowRequests` y publica sus cambios mediante un outbox transaccional a Apache Kafka.
 
 ## Configuración
 
@@ -9,7 +9,8 @@ Las claves se pueden sobreescribir con variables de entorno usando `__` como sep
 - `ConnectionStrings__RequestsDatabase`
 - `Jwt__Key`, `Jwt__Issuer`, `Jwt__Audience`, `Jwt__ExpirationMinutes`
 - `RequestId__NodeId` (0-63; debe ser distinto por réplica)
-- `RabbitMq__Host`, `RabbitMq__Port`, `RabbitMq__UserName`, `RabbitMq__Password`
+- `Kafka__BootstrapServers`, `Kafka__Topic`, `Kafka__ClientId`
+- `Kafka__PollingSeconds`, `Kafka__BatchSize`, `Kafka__MessageTimeoutSeconds`
 
 La API escucha en el puerto `8080` dentro del contenedor. En desarrollo crea el esquema y datos de demostración con `EnsureCreated`, reintentando mientras SQL Server termina de iniciar.
 

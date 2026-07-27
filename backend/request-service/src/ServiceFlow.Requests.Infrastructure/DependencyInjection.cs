@@ -41,14 +41,13 @@ public static class DependencyInjection
             requestIdNode));
         services.AddScoped<IRequestService, RequestService>();
 
-        services.AddOptions<RabbitMqOptions>()
-            .Bind(configuration.GetSection(RabbitMqOptions.SectionName))
-            .Validate(options => !string.IsNullOrWhiteSpace(options.Host), "RabbitMq:Host is required.")
-            .Validate(options => !string.IsNullOrWhiteSpace(options.Queue), "RabbitMq:Queue is required.")
-            .Validate(options => !string.IsNullOrWhiteSpace(options.DeadLetterExchange), "RabbitMq:DeadLetterExchange is required.")
-            .Validate(options => !string.IsNullOrWhiteSpace(options.DeadLetterQueue), "RabbitMq:DeadLetterQueue is required.")
-            .Validate(options => options.Port is > 0 and <= 65535, "RabbitMq:Port is invalid.")
-            .Validate(options => options.BatchSize is > 0 and <= 500, "RabbitMq:BatchSize must be between 1 and 500.")
+        services.AddOptions<KafkaOptions>()
+            .Bind(configuration.GetSection(KafkaOptions.SectionName))
+            .Validate(options => !string.IsNullOrWhiteSpace(options.BootstrapServers), "Kafka:BootstrapServers is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.Topic), "Kafka:Topic is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.ClientId), "Kafka:ClientId is required.")
+            .Validate(options => options.BatchSize is > 0 and <= 500, "Kafka:BatchSize must be between 1 and 500.")
+            .Validate(options => options.MessageTimeoutSeconds is > 0 and <= 300, "Kafka:MessageTimeoutSeconds must be between 1 and 300.")
             .ValidateOnStart();
         services.AddHostedService<OutboxPublisher>();
 

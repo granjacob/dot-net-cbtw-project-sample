@@ -25,7 +25,7 @@ Product Owner o del responsable de arquitectura.
 | DEC-008 | Alcance de auditoría | Producto + Cumplimiento | Historial funcional de estados en MVP. |
 | DEC-009 | Edición concurrente | Arquitectura | Concurrencia optimista y respuesta explícita de conflicto. |
 | DEC-010 | Fórmulas del dashboard | Producto | Agregados de servidor sobre el conjunto completo autorizado. |
-| DEC-011 | Broker local y de AWS | Arquitectura | RabbitMQ local; decidir Amazon MQ o adaptador SQS en AWS. |
+| DEC-011 | Broker local y de AWS | Arquitectura | Kafka local; usar Amazon MSK o implementar un adaptador SQS en AWS. |
 | DEC-012 | Objetivos no funcionales | Producto + SRE | Definir SLO, rendimiento, volumen, RTO, RPO y retención. |
 | DEC-013 | Alcance de la release AWS | Producto + Plataforma | Frontend en S3/CloudFront y APIs en EKS. |
 
@@ -165,13 +165,13 @@ autorizado; no derivarlos de una página limitada del listado.
 
 ## DEC-011 — Broker local y de AWS
 
-La propuesta original menciona Amazon SQS, mientras el desarrollo local puede
-usar RabbitMQ. SQS no implementa AMQP y requiere un adaptador distinto.
+La propuesta original menciona Amazon SQS, mientras la implementación actual usa
+Kafka. SQS no implementa el protocolo Kafka y requiere un adaptador distinto.
 
 **Opciones:**
 
-1. RabbitMQ local y Amazon MQ for RabbitMQ en AWS: menor cambio.
-2. RabbitMQ local y Amazon SQS en AWS: mayor trabajo, menor operación de broker.
+1. Kafka local y Amazon MSK en AWS: menor cambio.
+2. Kafka local y Amazon SQS en AWS: mayor trabajo, menor operación de broker.
 3. LocalStack/SQS local y SQS en AWS: mayor simetría, nuevo entorno de desarrollo.
 
 **Impacta:** HT-EVT-001, HT-EVT-002 y HT-DEP-001.

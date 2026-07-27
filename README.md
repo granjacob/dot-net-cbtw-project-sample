@@ -1,6 +1,6 @@
 # ServiceFlow
 
-Plataforma web para registrar, asignar y seguir solicitudes empresariales. El proyecto combina **ASP.NET Core .NET 10**, **React 19 + TypeScript**, SQL Server, RabbitMQ y SignalR en una arquitectura de microservicios instalable con Docker Compose.
+Plataforma web para registrar, asignar y seguir solicitudes empresariales. El proyecto combina **ASP.NET Core .NET 10**, **React 19 + TypeScript**, SQL Server, Apache Kafka y SignalR en una arquitectura de microservicios instalable con Docker Compose.
 
 ## Inicio rápido
 
@@ -32,7 +32,7 @@ La primera ejecución descarga SQL Server y compila las imágenes, por lo que pu
 | Swagger UI Notifications | http://localhost:5002/swagger |
 | OpenAPI Requests | http://localhost:5001/openapi/v1.json |
 | OpenAPI Notifications | http://localhost:5002/openapi/v1.json |
-| RabbitMQ Management | http://localhost:15672 |
+| Kafka UI | http://localhost:8085 |
 
 Puertos y credenciales de infraestructura se pueden cambiar en `.env`.
 
@@ -58,7 +58,7 @@ El arranque inicial crea tres solicitudes de ejemplo para que el dashboard no ap
     │                                EF Core + Outbox
     │                                      │ eventos
     │                                      ▼
-    │                               RabbitMQ topic
+    │                                Kafka topic
     │                                      │
     └── /api/notifications, /hubs ──► Notification Service :8080
                                            │       │
@@ -71,7 +71,7 @@ El arranque inicial crea tres solicitudes de ejemplo para que el dashboard no ap
     └── ServiceFlowNotifications  (solo Notification Service)
 ```
 
-Request Service guarda el cambio de negocio y su evento en la misma transacción mediante el patrón **Outbox**. Un proceso en segundo plano publica el evento persistente en RabbitMQ. Notification Service lo consume de forma idempotente, guarda `ProcessedEvent`, crea la notificación y publica por SignalR. React recibe el evento a través de un `EventBus`; un store observado con `useSyncExternalStore` actualiza las vistas e invalida la caché de TanStack Query.
+Request Service guarda el cambio de negocio y su evento en la misma transacción mediante el patrón **Outbox**. Un proceso en segundo plano publica el evento persistente en Kafka. Notification Service lo consume como miembro del grupo `serviceflow-notifications`, confirma manualmente el offset después de procesarlo de forma idempotente, guarda `ProcessedEvent`, crea la notificación y publica por SignalR. React recibe el evento a través de un `EventBus`; un store observado con `useSyncExternalStore` actualiza las vistas e invalida la caché de TanStack Query.
 
 Esto permite que una ventana de empleado vea de inmediato los cambios realizados por un agente en otra ventana, sin recargar la página.
 
@@ -91,7 +91,7 @@ Docker Compose se conserva para desarrollo y demostraciones locales. En AWS, el 
                               └── /api/*, /hubs/* ──► ALB privado (VPC origin)
                                                         ├── Request Service ──► RDS: ServiceFlowRequests
                                                         │          │
-                                                        │          └──────────► Amazon MQ for RabbitMQ
+                                                        │          └──────────► Amazon MSK
                                                         │                              │
                                                         └── Notification Service ◄─────┘
                                                                    │
@@ -105,10 +105,10 @@ Docker Compose se conserva para desarrollo y demostraciones locales. En AWS, el 
 | Notification Service | `backend/notification-service/` | ECR `serviceflow/notification-service:<commit-sha>` | `Deployment` y `Service` en EKS | Atiende `/api/notifications/*` y `/hubs/*`, consume eventos y mantiene SignalR. |
 | Base de solicitudes | `db/` y `backend/request-service/src/ServiceFlow.Requests.Infrastructure/` | Base `ServiceFlowRequests` | Amazon RDS for SQL Server en subredes privadas | Propiedad exclusiva de Request Service. Para la demo puede compartir instancia RDS con la otra base. |
 | Base de notificaciones | `db/` y `backend/notification-service/src/ServiceFlow.Notifications.Infrastructure/` | Base `ServiceFlowNotifications` | Amazon RDS for SQL Server en subredes privadas | Propiedad exclusiva de Notification Service. No se permiten consultas cruzadas. |
-| Mensajería asíncrona | `backend/*/src/*Infrastructure/Messaging/` | Exchanges y colas `serviceflow.*` | Amazon MQ for RabbitMQ privado | Sustituye el contenedor local de RabbitMQ conservando AMQP, routing keys, reintento y dead-letter exchange. |
+| Mensajería asíncrona | `backend/*/src/*Infrastructure/Messaging/` | Topics `serviceflow.request-events*` | Amazon MSK privado | Sustituye el broker Kafka local conservando topics, particiones, consumer groups, reintentos y DLQ. |
 | Entrada HTTP/HTTPS | Futuros `deploy/terraform/` y `deploy/kubernetes/` | Distribución CloudFront y ALB | Route 53 + CloudFront + ACM + ALB creado por AWS Load Balancer Controller | CloudFront es el único punto público; usa S3 como origen predeterminado y el ALB privado como VPC origin para las rutas dinámicas. |
 | Migraciones | `db/` y futuras migraciones EF Core | Artefactos incluidos en las imágenes o un paquete de migración | `Job` de Kubernetes con acceso privado a RDS | Versiona el esquema antes del rollout; en producción reemplaza `EnsureCreated`. |
-| Secretos | Configuración de los servicios | AWS Secrets Manager | Secrets Store CSI Driver para EKS | Monta o sincroniza claves JWT y credenciales de SQL/RabbitMQ como secretos de Kubernetes, sin guardarlas en Git ni en las imágenes. |
+| Secretos | Configuración de los servicios | AWS Secrets Manager | Secrets Store CSI Driver para EKS | Monta o sincroniza claves JWT y credenciales de SQL/Kafka como secretos de Kubernetes, sin guardarlas en Git ni en las imágenes. |
 | Logs y métricas | Salida estándar de todos los contenedores | CloudWatch Logs y métricas de Container Insights | Agentes/add-ons del clúster EKS | Centraliza logs, reinicios, health checks, errores y alarmas de la DLQ. |
 | CI/CD | `.github/workflows/ci.yml` | Bundle React en S3 y dos imágenes versionadas en ECR | GitHub Actions autenticado con AWS mediante IAM OIDC | Prueba todo, publica `dist/`, construye los backends con el SHA y actualiza los dos `Deployment`. El workflow actual termina en la construcción local. |
 | Entorno local | `docker-compose.yml` | Volúmenes Docker locales | No se despliega en AWS | Continúa levantando los cinco contenedores para desarrollo sin depender de servicios cloud. |
@@ -124,15 +124,15 @@ Los dos `Service` de Kubernetes serían internos (`ClusterIP`). Un `Ingress` adm
 
 CloudFront y Application Load Balancer soportan WebSockets, por lo que SignalR puede atravesar el mismo dominio usando `wss://`. La política del origen debe reenviar los encabezados WebSocket y la query string `access_token`. Una CloudFront Function reescribiría rutas de la SPA sin extensión, como `/requests/123`, hacia `/index.html`, excluyendo `/api/*` y `/hubs/*`. S3 se protege con Origin Access Control; el ALB, RDS, Amazon MQ, los nodos y los pods permanecen en subredes privadas.
 
-### RabbitMQ actual y alternativa con Amazon SQS
+### Kafka local y alternativa administrada en AWS
 
-La implementación actual depende de `RabbitMQ.Client`, exchanges, routing keys, bindings y dead-letter exchanges. Por ello, la ruta de menor cambio para el primer despliegue es **Amazon MQ for RabbitMQ**, habilitando AMQPS/TLS en ambos microservicios y almacenando sus credenciales en Secrets Manager.
+La implementación usa `Confluent.Kafka`, topics, claves de partición, consumer groups, commit manual de offsets y un topic de dead letter. La ruta de menor cambio para AWS es **Amazon MSK**, habilitando TLS y autenticación en ambos microservicios y almacenando la configuración sensible en Secrets Manager.
 
-La propuesta original plantea **Amazon SQS**. SQS no es un reemplazo configurable del protocolo RabbitMQ: para adoptarlo deben crearse adaptadores como `SqsEventPublisher` y `SqsNotificationConsumer` con AWS SDK. Request Service tendría permiso IAM únicamente para enviar; Notification Service podría recibir y eliminar; una redrive policy movería los fallos a una DLQ. El dominio, los casos de uso, el Outbox y el control idempotente mediante `ProcessedEvents` se conservarían.
+Amazon SQS sigue siendo una alternativa, pero no es un reemplazo directo del protocolo Kafka: requeriría adaptadores `SqsEventPublisher` y `SqsNotificationConsumer`. El dominio, los casos de uso, el Outbox y el control idempotente mediante `ProcessedEvents` se conservarían.
 
 ### Secuencia de aprovisionamiento y entrega
 
-1. Terraform aprovisiona VPC, subredes en al menos dos zonas, EKS, dos repositorios ECR, el bucket S3 privado, RDS, Amazon MQ, Secrets Manager y CloudWatch, e instala AWS Load Balancer Controller.
+1. Terraform aprovisiona VPC, subredes en al menos dos zonas, EKS, dos repositorios ECR, el bucket S3 privado, RDS, Amazon MSK, Secrets Manager y CloudWatch, e instala AWS Load Balancer Controller.
 2. El bootstrap aplica el `Ingress`; el controlador crea el ALB interno y una segunda etapa de infraestructura lo registra como VPC origin de CloudFront, configura ACM y publica el dominio en Route 53.
 3. GitHub Actions restaura dependencias y ejecuta las pruebas de .NET y React.
 4. El pipeline ejecuta `npm run build`, sincroniza `frontend/dist/` con S3 e invalida `/index.html` en CloudFront.
@@ -142,7 +142,7 @@ La propuesta original plantea **Amazon SQS**. SQS no es un reemplazo configurabl
 
 Antes de aumentar réplicas, Notification Service necesita un backplane de SignalR, por ejemplo Amazon ElastiCache for Redis, y afinidad de sesión en el ALB; el comportamiento `/hubs/*` de CloudFront también debe reenviar la cookie de afinidad. Inicialmente debe ejecutarse con una réplica. Cada réplica de Request Service necesita un `RequestId__NodeId` diferente. Para producción deben eliminarse los usuarios demo y valores predeterminados, sustituir el proveedor JWT simulado por un proveedor como Amazon Cognito, usar `ASPNETCORE_ENVIRONMENT=Production`, permisos IAM mínimos y credenciales SQL distintas por microservicio.
 
-Referencias: [sitio estático seguro con S3 y CloudFront](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/getting-started-secure-static-website-cloudformation-template.html), [comportamientos y múltiples orígenes](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/DownloadDistValuesCacheBehavior.html), [WebSockets en CloudFront](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/distribution-working-with.websockets.html), [VPC origins privados](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-vpc-origins.html), [AWS Load Balancer Controller](https://docs.aws.amazon.com/eks/latest/userguide/aws-load-balancer-controller.html), [Amazon ECR](https://docs.aws.amazon.com/AmazonECR/latest/userguide/docker-push-ecr-image.html), [Amazon RDS for SQL Server](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_SQLServer.html), [Amazon MQ for RabbitMQ](https://docs.aws.amazon.com/amazon-mq/latest/developer-guide/working-with-rabbitmq.html), [DLQ de Amazon SQS](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html), [Secrets Manager con EKS](https://docs.aws.amazon.com/eks/latest/userguide/manage-secrets.html), [IAM OIDC](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_oidc.html) y [CloudWatch Container Insights](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/ContainerInsights.html).
+Referencias: [sitio estático seguro con S3 y CloudFront](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/getting-started-secure-static-website-cloudformation-template.html), [comportamientos y múltiples orígenes](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/DownloadDistValuesCacheBehavior.html), [WebSockets en CloudFront](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/distribution-working-with.websockets.html), [VPC origins privados](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-vpc-origins.html), [AWS Load Balancer Controller](https://docs.aws.amazon.com/eks/latest/userguide/aws-load-balancer-controller.html), [Amazon ECR](https://docs.aws.amazon.com/AmazonECR/latest/userguide/docker-push-ecr-image.html), [Amazon RDS for SQL Server](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_SQLServer.html), [Amazon MSK](https://docs.aws.amazon.com/msk/latest/developerguide/getting-started.html), [DLQ de Amazon SQS](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html), [Secrets Manager con EKS](https://docs.aws.amazon.com/eks/latest/userguide/manage-secrets.html), [IAM OIDC](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_oidc.html) y [CloudWatch Container Insights](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/ContainerInsights.html).
 
 ## Estructura
 
@@ -244,7 +244,7 @@ npm run build
 npm test
 ```
 
-Para ejecutar Vite durante desarrollo, inicia primero SQL Server, RabbitMQ y los dos servicios, y luego usa `npm run dev`. Vite redirige Requests a `localhost:5001`, Notifications/SignalR a `localhost:5002`.
+Para ejecutar Vite durante desarrollo, inicia primero SQL Server, Kafka y los dos servicios, y luego usa `npm run dev`. Vite redirige Requests a `localhost:5001`, Notifications/SignalR a `localhost:5002`.
 
 Comandos operativos útiles:
 
@@ -261,7 +261,7 @@ docker compose down
 Las claves de `.env.example` son exclusivamente de desarrollo. Antes de un despliegue real:
 
 - configura secretos desde el gestor de secretos de la plataforma;
-- cambia `MSSQL_SA_PASSWORD`, `RABBITMQ_PASSWORD` y `JWT_KEY`;
+- cambia `MSSQL_SA_PASSWORD` y `JWT_KEY`, y configura autenticación/TLS para Kafka;
 - usa un proveedor de identidad real en lugar de los usuarios demo;
 - habilita HTTPS y restringe CORS;
 - crea usuarios SQL independientes con permisos mínimos por base;
@@ -275,4 +275,4 @@ Si Request Service se escala a varias réplicas, configura un valor `RequestId__
 - **SQL Server queda `unhealthy`:** asigna al menos 4 GB de memoria a Docker y revisa `docker compose logs sqlserver`.
 - **Un puerto ya está ocupado:** cambia el puerto correspondiente en `.env`.
 - **La interfaz abre pero aún no carga datos:** revisa `docker compose ps`; ambos servicios deben haber terminado sus reintentos de conexión a SQL Server.
-- **No llegan eventos:** abre RabbitMQ Management y comprueba la cola `serviceflow.notifications`, o revisa los logs de ambos microservicios.
+- **No llegan eventos:** abre Kafka UI, comprueba el topic `serviceflow.request-events`, el consumer group `serviceflow-notifications` y su lag, o revisa los logs de ambos microservicios.

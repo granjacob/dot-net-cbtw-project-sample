@@ -4,7 +4,7 @@
 
 **ServiceFlow** es una plataforma web para registrar, asignar y hacer seguimiento a solicitudes internas de una organización. Centraliza casos como soporte técnico, mantenimiento, acceso a sistemas, compras e incidentes operativos, y permite que empleados y personal de atención colaboren sobre una misma solicitud.
 
-El proyecto demuestra una solución distribuida de extremo a extremo: una interfaz web en React, dos microservicios en ASP.NET Core, persistencia independiente en SQL Server, mensajería asíncrona con RabbitMQ y actualizaciones en tiempo real mediante SignalR. Todo el entorno puede ejecutarse localmente con Docker Compose.
+El proyecto demuestra una solución distribuida de extremo a extremo: una interfaz web en React, dos microservicios en ASP.NET Core, persistencia independiente en SQL Server, mensajería asíncrona con Apache Kafka y actualizaciones en tiempo real mediante SignalR. Todo el entorno puede ejecutarse localmente con Docker Compose.
 
 ## 2. Problema que resuelve
 
@@ -54,7 +54,7 @@ React + Nginx (:3000)
   │                              SQL Server + Outbox
   │                                      │ eventos
   │                                      ▼
-  │                                  RabbitMQ
+  │                               Apache Kafka
   │                                      │
   └── /api/notifications y /hubs ─► Notification Service (:5002)
                                          ├── SQL Server
@@ -69,7 +69,7 @@ La solución se divide en los siguientes componentes:
 | Request Service | ASP.NET Core sobre .NET 10, EF Core | Autenticación demo y ciclo de vida completo de las solicitudes. |
 | Notification Service | ASP.NET Core sobre .NET 10, EF Core, SignalR | Consume eventos, persiste notificaciones y las entrega al usuario conectado. |
 | SQL Server | SQL Server 2022 | Mantiene una base independiente para cada microservicio. |
-| RabbitMQ | RabbitMQ 4 | Transporta eventos de solicitudes de forma asíncrona. |
+| Kafka | Apache Kafka 4 | Transporta y conserva eventos de solicitudes de forma asíncrona. |
 | Nginx | Nginx en el contenedor frontend | Sirve la aplicación compilada y enruta API y WebSocket. |
 
 Cada microservicio usa una organización inspirada en **Clean Architecture**:
@@ -87,13 +87,13 @@ Esta separación reduce el acoplamiento entre las reglas de negocio y los detall
 2. Desde React registra una solicitud con título, descripción, categoría y prioridad.
 3. Request Service valida las reglas, calcula el SLA y guarda la solicitud.
 4. En la misma transacción guarda un mensaje en la tabla Outbox.
-5. Un proceso en segundo plano publica el mensaje pendiente en RabbitMQ.
+5. Un proceso en segundo plano publica el mensaje pendiente en Kafka.
 6. Notification Service consume el evento y verifica que no se haya procesado antes.
 7. El servicio guarda la notificación y registra el evento como procesado.
 8. SignalR envía la actualización al grupo del usuario correspondiente.
 9. El frontend recibe el evento, actualiza su store e invalida los datos en caché.
 
-El patrón **Transactional Outbox** evita perder un evento si la operación de negocio se guardó pero RabbitMQ no estaba disponible. El consumidor idempotente evita crear notificaciones duplicadas cuando un mensaje se entrega más de una vez.
+El patrón **Transactional Outbox** evita perder un evento si la operación de negocio se guardó pero Kafka no estaba disponible. El consumidor idempotente evita crear notificaciones duplicadas cuando un mensaje se procesa más de una vez.
 
 ## 7. Reglas de negocio relevantes
 
@@ -173,7 +173,7 @@ No es obligatorio crear `.env`, porque la composición incluye valores para demo
 | Notification Service | http://localhost:5002 |
 | Swagger Requests | http://localhost:5001/swagger |
 | Swagger Notifications | http://localhost:5002/swagger |
-| RabbitMQ Management | http://localhost:15672 |
+| Kafka UI | http://localhost:8085 |
 
 ### Usuarios de demostración
 
@@ -191,14 +191,14 @@ No es obligatorio crear `.env`, porque la composición incluye valores para demo
 4. Abrir una segunda ventana, iniciar sesión como agente y asignar el caso.
 5. Cambiar el estado y agregar un comentario.
 6. Volver a la ventana del empleado y mostrar la actualización automática y la notificación.
-7. Explicar el recorrido técnico: Outbox, RabbitMQ, consumidor idempotente y SignalR.
+7. Explicar el recorrido técnico: Outbox, Kafka, consumer group, consumidor idempotente y SignalR.
 8. Mostrar Swagger, health checks y el pipeline de integración continua.
 
 La demostración evidencia el principal valor técnico del proyecto: dos usuarios observan un flujo distribuido consistente y actualizado en tiempo real, aun cuando la publicación de eventos ocurre de forma asíncrona.
 
 ## 13. Alcance actual y evolución
 
-La implementación actual está preparada para desarrollo y demostración local. El repositorio documenta una arquitectura objetivo en AWS con frontend estático en S3 y CloudFront, imágenes backend en ECR, servicios en EKS, RDS para SQL Server, Amazon MQ for RabbitMQ, Secrets Manager y CloudWatch. Esa infraestructura es una **propuesta**: todavía no se incluyen manifiestos Kubernetes, Terraform ni un pipeline de despliegue a AWS.
+La implementación actual está preparada para desarrollo y demostración local. El repositorio documenta una arquitectura objetivo en AWS con frontend estático en S3 y CloudFront, imágenes backend en ECR, servicios en EKS, RDS para SQL Server, Amazon MSK, Secrets Manager y CloudWatch. Esa infraestructura es una **propuesta**: todavía no se incluyen manifiestos Kubernetes, Terraform ni un pipeline de despliegue a AWS.
 
 Antes de producción también sería necesario:
 

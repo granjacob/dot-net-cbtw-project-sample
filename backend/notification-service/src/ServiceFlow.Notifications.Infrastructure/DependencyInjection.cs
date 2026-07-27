@@ -18,13 +18,13 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException(
                 "Connection string 'NotificationsDatabase' is not configured.");
 
-        services.AddOptions<RabbitMqOptions>()
-            .Bind(configuration.GetSection(RabbitMqOptions.SectionName))
-            .Validate(options => !string.IsNullOrWhiteSpace(options.HostName), "RabbitMq:HostName is required.")
-            .Validate(options => !string.IsNullOrWhiteSpace(options.Queue), "RabbitMq:Queue is required.")
-            .Validate(options => !string.IsNullOrWhiteSpace(options.DeadLetterExchange), "RabbitMq:DeadLetterExchange is required.")
-            .Validate(options => !string.IsNullOrWhiteSpace(options.DeadLetterQueue), "RabbitMq:DeadLetterQueue is required.")
-            .Validate(options => options.Port is > 0 and <= 65535, "RabbitMq:Port is invalid.")
+        services.AddOptions<KafkaOptions>()
+            .Bind(configuration.GetSection(KafkaOptions.SectionName))
+            .Validate(options => !string.IsNullOrWhiteSpace(options.BootstrapServers), "Kafka:BootstrapServers is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.Topic), "Kafka:Topic is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.DeadLetterTopic), "Kafka:DeadLetterTopic is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.GroupId), "Kafka:GroupId is required.")
+            .Validate(options => options.MaxProcessingAttempts is > 0 and <= 10, "Kafka:MaxProcessingAttempts must be between 1 and 10.")
             .ValidateOnStart();
         services.Configure<DatabaseInitializationOptions>(
             configuration.GetSection(DatabaseInitializationOptions.SectionName));
@@ -32,7 +32,7 @@ public static class DependencyInjection
         services.AddDbContext<NotificationDbContext>(options =>
             options.UseSqlServer(connectionString));
         services.AddScoped<INotificationRepository, EfNotificationRepository>();
-        services.AddHostedService<RabbitMqNotificationConsumer>();
+        services.AddHostedService<KafkaNotificationConsumer>();
 
         return services;
     }

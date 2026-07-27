@@ -11,7 +11,7 @@
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="10.0.10" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.10" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.10" />
-    <PackageReference Include="RabbitMQ.Client" Version="7.2.0" />
+    <PackageReference Include="Confluent.Kafka" Version="2.15.0" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="ServiceFlow.Notifications.UnitTests" />

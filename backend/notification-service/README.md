@@ -7,15 +7,16 @@ persistir notificaciones idempotentes y publicarlas en tiempo real mediante Sign
 
 - `Domain`: entidades `Notification` y `ProcessedEvent`.
 - `Application`: contratos, repositorio y casos de uso de consulta/lectura.
-- `Infrastructure`: EF Core SQL Server, inicialización con reintentos y consumidor RabbitMQ.
+- `Infrastructure`: EF Core SQL Server, inicialización con reintentos y consumidor Kafka.
 - `Api`: endpoints JWT, Problem Details, SignalR, CORS, OpenAPI y health checks.
 - `tests`: pruebas unitarias xUnit.
 
-## Contrato RabbitMQ
+## Contrato Kafka
 
-- Exchange topic: `serviceflow.events`
-- Queue durable: `serviceflow.notifications`
-- Binding: `request.#` (incluye el routing key `request.event`)
+- Topic principal: `serviceflow.request-events` (3 particiones en desarrollo local).
+- Consumer group: `serviceflow-notifications`.
+- Dead-letter topic: `serviceflow.request-events.dlq`.
+- La clave de partición es `requestId`, para conservar el orden de eventos de una solicitud.
 
 Envelope esperado (camelCase):
 
@@ -78,8 +79,8 @@ Las claves admiten el formato de variables de entorno de .NET (`__`):
 
 - `ConnectionStrings__NotificationsDatabase`
 - `Jwt__Issuer`, `Jwt__Audience`, `Jwt__Key`
-- `RabbitMq__HostName`, `RabbitMq__Port`, `RabbitMq__UserName`, `RabbitMq__Password`
-- `RabbitMq__Exchange`, `RabbitMq__Queue`, `RabbitMq__RoutingKey`
+- `Kafka__BootstrapServers`, `Kafka__Topic`, `Kafka__DeadLetterTopic`
+- `Kafka__GroupId`, `Kafka__ClientId`, `Kafka__MaxProcessingAttempts`
 - `Cors__Origins__0`
 - `SignalR__BroadcastToAll`
 - `DatabaseInitialization__Enabled`, `DatabaseInitialization__MaxRetries`
